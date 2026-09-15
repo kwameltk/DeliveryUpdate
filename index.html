@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kwahu Food Delivery - Order Dispatch & Tracking System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        kfdgreen: {
+                            50: '#f0fdf4',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            900: '#064e3b'
+                        },
+                        kfdgold: {
+                            400: '#facc15',
+                            500: '#eab308',
+                            600: '#ca8a04'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+
+    <!-- Header / Navigation Bar -->
+    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <!-- Brand Logo & Title -->
+            <div class="flex items-center space-x-3">
+                <div class="w-12 h-12 bg-gradient-to-tr from-kfdgreen-700 to-kfdgold-500 rounded-xl flex items-center justify-center shadow-md border border-kfdgold-500/30">
+                    <i class="fa-solid fa-motorcycle text-white text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                        KWAHU FOOD <span class="text-kfdgold-500">DELIVERY</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Order Dispatch & Real-Time Tracking Portal</p>
+                </div>
+            </div>
+
+            <!-- Portal Toggle Buttons -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <button id="btn-cs" onclick="switchView('cs')" class="px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2 bg-kfdgreen-600 text-white shadow-lg shadow-kfdgreen-600/30 hover:bg-kfdgreen-700">
+                    <i class="fa-solid fa-headset"></i>
+                    <span class="hidden sm:inline">Customer Service Portal</span>
+                    <span class="sm:hidden">CS Portal</span>
+                </button>
+                <button id="btn-rider" onclick="switchView('rider')" class="px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2 bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700">
+                    <i class="fa-solid fa-person-biking"></i>
+                    <span class="hidden sm:inline">Rider View</span>
+                    <span class="sm:hidden">Rider</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- ================= CUSTOMER SERVICE PORTAL ================= -->
+        <div id="view-cs" class="space-y-8">
+            <!-- Portal Header Stats & Actions -->
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-slate-900/60 p-6 rounded-2xl border border-slate-800">
+                <div>
+                    <h2 class="text-2xl font-bold text-white flex items-center gap-3">
+                        <i class="fa-solid fa-clipboard-list text-kfdgold-500"></i> Dispatch Master Control
+                    </h2>
+                    <p class="text-sm text-slate-400 mt-1">Manage, update status, and assign active deliveries across Kwahu South.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="openOrderModal()" class="px-5 py-2.5 bg-gradient-to-r from-kfdgreen-600 to-kfdgreen-700 hover:from-kfdgreen-500 hover:to-kfdgreen-600 text-white font-semibold rounded-xl shadow-lg shadow-kfdgreen-900/40 transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-plus-circle"></i> New Order Entry
+                    </button>
+                    <button onclick="exportData()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl border border-slate-700 transition-all flex items-center gap-2 text-sm" title="Export data to CSV">
+                        <i class="fa-solid fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Metrics Grid -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-slate-900/80 p-5 rounded-xl border border-slate-800/80">
+                    <div class="text-slate-400 text-xs font-medium uppercase tracking-wider">Total Orders</div>
+                    <div id="stat-total" class="text-2xl font-bold text-white mt-1">0</div>
+                </div>
+                <div class="bg-slate-900/80 p-5 rounded-xl border border-slate-800/80">
+                    <div class="text-slate-400 text-xs font-medium uppercase tracking-wider">Pending / Picked</div>
+                    <div id="stat-pending" class="text-2xl font-bold text-kfdgold-400 mt-1">0</div>
+                </div>
+                <div class="bg-slate-900/80 p-5 rounded-xl border border-slate-800/80">
+                    <div class="text-slate-400 text-xs font-medium uppercase tracking-wider">Enroute</div>
+                    <div id="stat-ontheway" class="text-2xl font-bold text-blue-400 mt-1">0</div>
+                </div>
+                <div class="bg-slate-900/80 p-5 rounded-xl border border-slate-800/80">
+                    <div class="text-slate-400 text-xs font-medium uppercase tracking-wider">Delivered</div>
+                    <div id="stat-delivered" class="text-2xl font-bold text-kfdgreen-500 mt-1">0</div>
+                </div>
+            </div>
+
+            <!-- Orders Table Section -->
+            <div class="bg-slate-900 rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+                <div class="p-4 sm:p-6 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div class="relative flex-1 max-w-md">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                            <i class="fa-solid fa-search"></i>
+                        </span>
+                        <input type="text" id="table-search" oninput="renderTables()" placeholder="Search by customer, meal, area or rider..." class="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-kfdgreen-500">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <select id="filter-status" onchange="renderTables()" class="bg-slate-950 border border-slate-800 text-slate-300 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-kfdgreen-500">
+                            <option value="">All Statuses</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Picked">Picked</option>
+                            <option value="Enroute">Enroute</option>
+                            <option value="Delivered">Delivered</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-950/60 text-slate-400 text-xs font-semibold uppercase tracking-wider border-b border-slate-800">
+                                <th class="py-4 px-6">Order Initial / Customer</th>
+                                <th class="py-4 px-6">Contact Number</th>
+                                <th class="py-4 px-6">Meal</th>
+                                <th class="py-4 px-6">Delivery Area & Coordinates</th>
+                                <th class="py-4 px-6">Status</th>
+                                <th class="py-4 px-6">Assigned Rider</th>
+                                <th class="py-4 px-6 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-table-body" class="divide-y divide-slate-800/60 text-sm text-slate-300">
+                            <!-- Dynamic rows populate here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= RIDER VIEW PORTAL ================= -->
+        <div id="view-rider" class="space-y-6 hidden">
+            <div class="bg-slate-900/60 p-6 rounded-2xl border border-slate-800 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-white flex items-center gap-3">
+                        <i class="fa-solid fa-person-biking text-kfdgreen-500"></i> Rider Live Dispatch Hub
+                    </h2>
+                    <p class="text-sm text-slate-400 mt-1">Read-only operational view for assigned deliveries and route execution.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-800 text-sm flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="text-slate-300 font-medium">System Online</span>
+                    </div>
+                    <button onclick="renderRiderView()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl border border-slate-700 transition-all flex items-center gap-2 text-sm">
+                        <i class="fa-solid fa-rotate"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Rider Selector Filter -->
+            <div class="flex flex-wrap items-center gap-3 bg-slate-900 p-4 rounded-xl border border-slate-800">
+                <span class="text-sm font-medium text-slate-400">Select Rider:</span>
+                <div id="rider-filter-pills" class="flex flex-wrap gap-2">
+                    <!-- Dynamic rider pills -->
+                </div>
+            </div>
+
+            <!-- Active Assigned Orders Grid for Riders -->
+            <div id="rider-orders-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Rider cards populate here -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Order Add/Edit Modal -->
+    <div id="order-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-6">
+                <h3 id="modal-title" class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-plus-circle text-kfdgreen-500"></i> Add New Order
+                </h3>
+                <button onclick="closeOrderModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form id="order-form" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                <input type="hidden" id="form-edit-id">
+                
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Customer / Order Initial</label>
+                    <input type="text" id="form-initial" required placeholder="e.g. Kwame Mensah or K-101" class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-kfdgreen-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Contact Number</label>
+                    <input type="text" id="form-contact" required placeholder="e.g. 0552816831" class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-kfdgreen-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Meal Ordered</label>
+                    <input type="text" id="form-meal" required placeholder="e.g. Banku & Tilapia with Hot Pepper" class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-kfdgreen-500">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Delivery Area</label>
+                        <select id="form-area" required class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-kfdgreen-500">
+                            <option value="Mpraeso Central">Mpraeso Central</option>
+                            <option value="Atibie Township">Atibie Township</option>
+                            <option value="Kwahu Tafo">Kwahu Tafo</option>
+                            <option value="Nkawkaw Station">Nkawkaw Station</option>
+                            <option value="Beetle / Obomeng">Beetle / Obomeng</option>
+                            <option value="Nkwatia University Area">Nkwatia University Area</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Delivery Coordinates</label>
+                        <input type="text" id="form-coordinates" required placeholder="e.g. 6.6653° N, 0.7352° W" class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-kfdgreen-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Delivery Status</label>
+                        <select id="form-status" required class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-kfdgreen-500">
+                            <option value="Pending">Pending</option>
+                            <option value="Picked">Picked</option>
+                            <option value="Enroute">Enroute</option>
+                            <option value="Delivered">Delivered</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Assigned Rider</label>
+                        <select id="form-rider" required class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-kfdgreen-500">
+                            <option value="Kwame">Kwame</option>
+                            <option value="KFD Delivery">KFD Delivery</option>
+                            <option value="Sky">Sky</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="pt-4 flex items-center justify-end space-x-3 border-t border-slate-800">
+                    <button type="button" onclick="closeOrderModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl text-sm transition-all">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-kfdgreen-600 hover:bg-kfdgreen-500 text-white font-semibold rounded-xl text-sm shadow-lg shadow-kfdgreen-900/30 transition-all">Save Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 border border-slate-700 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-kfdgreen-500 text-lg"></i>
+        <span id="toast-message" class="text-sm font-medium">Action completed successfully.</span>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Initial dataset matching KFD requirements & Excel structure
+        const defaultOrders = [
+            {
+                id: "KFD-101",
+                initial: "Akua Nketia",
+                contact: "0552816831",
+                meal: "Banku & Tilapia with Hot Pepper",
+                coordinates: "6.6653° N, 0.7352° W",
+                area: "Mpraeso Central",
+                status: "Enroute",
+                rider: "Kwame"
+            },
+            {
+                id: "KFD-102",
+                initial: "Kofi Mensah",
+                contact: "0244123456",
+                meal: "Jollof Rice with Fried Chicken & Plantain",
+                coordinates: "6.6520° N, 0.7410° W",
+                area: "Atibie Township",
+                status: "Picked",
+                rider: "KFD Delivery"
+            },
+            {
+                id: "KFD-103",
+                initial: "Abena Ofori",
+                contact: "0509876543",
+                meal: "Fufu with Light Soup & Goat Meat",
+                coordinates: "6.6810° N, 0.7220° W",
+                area: "Kwahu Tafo",
+                status: "Pending",
+                rider: "Sky"
+            },
+            {
+                id: "KFD-104",
+                initial: "Kwasi Appiah",
+                contact: "0277889900",
+                meal: "Fried Yam with Spicy Grilled Tilapia",
+                coordinates: "6.5540° N, 0.6530° W",
+                area: "Nkawkaw Station",
+                status: "Delivered",
+                rider: "Kwame"
+            }
+        ];
+
+        // State management
+        const riders = ["Kwame", "KFD Delivery", "Sky"];
+        const deliveryStatuses = ["Pending", "Picked", "Enroute", "Delivered"];
+        let orders = JSON.parse(localStorage.getItem('kfd_orders')) || defaultOrders;
+        let currentView = 'cs';
+        let selectedRiderFilter = 'All';
+
+        orders = orders.map(order => ({
+            ...order,
+            status: deliveryStatuses.includes(order.status) ? order.status : (order.status === 'Cooking' ? 'Picked' : order.status === 'On the Way' ? 'Enroute' : 'Pending'),
+            rider: riders.includes(order.rider) ? order.rider : (order.rider === 'Sky Delivery' || order.rider.includes('Sky') ? 'Sky' : order.rider.includes('Rider 1') || order.rider.includes('Rider 3') ? 'Kwame' : 'KFD Delivery')
+        }));
+        localStorage.setItem('kfd_orders', JSON.stringify(orders));
+
+        // Initialize App on Load
+        window.onload = function() {
+            renderTables();
+            updateMetrics();
+            setupRiderFilterPills();
+        };
+
+        // View Switcher logic
+        function switchView(view) {
+            currentView = view;
+            const csView = document.getElementById('view-cs');
+            const riderView = document.getElementById('view-rider');
+            const btnCs = document.getElementById('btn-cs');
+            const btnRider = document.getElementById('btn-rider');
+
+            if (view === 'cs') {
+                csView.classList.remove('hidden');
+                riderView.classList.add('hidden');
+                btnCs.className = "px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2 bg-kfdgreen-600 text-white shadow-lg shadow-kfdgreen-600/30 hover:bg-kfdgreen-700";
+                btnRider.className = "px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2 bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700";
+                renderTables();
+                updateMetrics();
+            } else {
+                csView.classList.add('hidden');
+                riderView.classList.remove('hidden');
+                btnRider.className = "px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2 bg-kfdgreen-600 text-white shadow-lg shadow-kfdgreen-600/30 hover:bg-kfdgreen-700";
+                btnCs.className = "px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2 bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700";
+                renderRiderView();
+            }
+        }
+
+        // Save orders to LocalStorage
+        function saveOrders() {
+            localStorage.setItem('kfd_orders', JSON.stringify(orders));
+            updateMetrics();
+        }
+
+        // Render CS Table
+        function renderTables() {
+            const tbody = document.getElementById('orders-table-body');
+            const searchQuery = document.getElementById('table-search').value.toLowerCase();
+            const statusFilter = document.getElementById('filter-status').value;
+
+            tbody.innerHTML = '';
+
+            const filtered = orders.filter(o => {
+                const matchesSearch = o.initial.toLowerCase().includes(searchQuery) ||
+                                      o.meal.toLowerCase().includes(searchQuery) ||
+                                      o.area.toLowerCase().includes(searchQuery) ||
+                                      o.rider.toLowerCase().includes(searchQuery) ||
+                                      o.contact.includes(searchQuery);
+                const matchesStatus = statusFilter === '' || o.status === statusFilter;
+                return matchesSearch && matchesStatus;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-500">No delivery orders found matching your criteria.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(o => {
+                let badgeClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                if (o.status === 'Picked') badgeClass = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+                if (o.status === 'Enroute') badgeClass = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+                if (o.status === 'Delivered') badgeClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-900/60 transition-colors border-b border-slate-800/40";
+                tr.innerHTML = `
+                    <td class="py-4 px-6 font-medium text-white">
+                        <div class="text-white">${o.initial}</div>
+                        <div class="text-xs text-slate-500">${o.id}</div>
+                    </td>
+                    <td class="py-4 px-6 text-slate-300 font-mono text-xs">${o.contact}</td>
+                    <td class="py-4 px-6 text-slate-300 max-w-xs truncate" title="${o.meal}">${o.meal}</td>
+                    <td class="py-4 px-6">
+                        <div class="text-slate-200 font-medium text-xs">${o.area}</div>
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.coordinates)}" target="_blank" rel="noopener noreferrer" class="text-kfdgreen-400 hover:text-kfdgreen-300 hover:underline text-xs font-mono inline-flex items-center gap-1" title="Open customer location in Google Maps">
+                            <i class="fa-solid fa-location-arrow"></i> ${o.coordinates}
+                        </a>
+                    </td>
+                    <td class="py-4 px-6">
+                        <select onchange="updateOrderStatus('${o.id}', this.value)" class="px-3 py-1 rounded-full text-xs font-semibold border ${badgeClass} bg-transparent cursor-pointer focus:outline-none">
+                            <option value="Pending" ${o.status === 'Pending' ? 'selected' : ''} class="bg-slate-900 text-slate-200">Pending</option>
+                            <option value="Picked" ${o.status === 'Picked' ? 'selected' : ''} class="bg-slate-900 text-slate-200">Picked</option>
+                            <option value="Enroute" ${o.status === 'Enroute' ? 'selected' : ''} class="bg-slate-900 text-slate-200">Enroute</option>
+                            <option value="Delivered" ${o.status === 'Delivered' ? 'selected' : ''} class="bg-slate-900 text-slate-200">Delivered</option>
+                        </select>
+                    </td>
+                    <td class="py-4 px-6 text-slate-300 text-xs font-medium">
+                        <span class="px-2.5 py-1 bg-slate-800 rounded-lg border border-slate-700/60">${o.rider}</span>
+                    </td>
+                    <td class="py-4 px-6 text-right space-x-2">
+                        <button onclick="openEditModal('${o.id}')" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors" title="Edit Order">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <button onclick="deleteOrder('${o.id}')" class="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors" title="Delete Order">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Update Order Status directly from table dropdown
+        function updateOrderStatus(id, newStatus) {
+            const order = orders.find(o => o.id === id);
+            if (order) {
+                order.status = newStatus;
+                saveOrders();
+                renderTables();
+                showToast(`Order ${id} status updated to "${newStatus}"`);
+            }
+        }
+
+        // Update Metrics counters
+        function updateMetrics() {
+            document.getElementById('stat-total').innerText = orders.length;
+            document.getElementById('stat-pending').innerText = orders.filter(o => o.status === 'Pending' || o.status === 'Picked').length;
+            document.getElementById('stat-ontheway').innerText = orders.filter(o => o.status === 'Enroute').length;
+            document.getElementById('stat-delivered').innerText = orders.filter(o => o.status === 'Delivered').length;
+        }
+
+        // Rider view filter pills setup
+        function setupRiderFilterPills() {
+            const riderFilters = ["All", ...riders];
+            const container = document.getElementById('rider-filter-pills');
+            container.innerHTML = '';
+
+            riderFilters.forEach(r => {
+                const btn = document.createElement('button');
+                btn.className = `px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${selectedRiderFilter === r ? 'bg-kfdgreen-600 text-white shadow-md' : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'}`;
+                btn.innerText = r;
+                btn.onclick = () => {
+                    selectedRiderFilter = r;
+                    setupRiderFilterPills();
+                    renderRiderView();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        // Render Rider View Cards (Read-only for riders with status simulation toggle)
+        function renderRiderView() {
+            const container = document.getElementById('rider-orders-container');
+            container.innerHTML = '';
+
+            let filtered = orders.filter(o => o.status !== 'Delivered');
+            if (selectedRiderFilter !== 'All') {
+                filtered = filtered.filter(o => o.rider === selectedRiderFilter);
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full py-16 text-center bg-slate-900 rounded-2xl border border-slate-800">
+                        <i class="fa-solid fa-check-double text-4xl text-kfdgreen-500 mb-3"></i>
+                        <p class="text-slate-300 font-medium">No active deliveries pending for this filter.</p>
+                        <p class="text-xs text-slate-500 mt-1">Check back soon or switch rider profile.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(o => {
+                const card = document.createElement('div');
+                card.className = "bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all";
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-bold text-kfdgold-400 font-mono bg-kfdgold-400/10 px-2.5 py-1 rounded-md border border-kfdgold-400/20">${o.id}</span>
+                            <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">${o.status}</span>
+                        </div>
+                        <h3 class="text-base font-bold text-white mb-1">${o.meal}</h3>
+                        <div class="text-xs text-slate-400 space-y-1 mt-3">
+                            <div class="flex items-center gap-2"><i class="fa-solid fa-user text-slate-500 w-4"></i> <span>Customer: <strong class="text-slate-200">${o.initial}</strong></span></div>
+                            <div class="flex items-center gap-2"><i class="fa-solid fa-phone text-slate-500 w-4"></i> <a href="tel:${o.contact}" class="text-kfdgreen-400 font-mono hover:underline">${o.contact}</a></div>
+                            <div class="flex items-center gap-2"><i class="fa-solid fa-location-dot text-slate-500 w-4"></i> <span>Area: <strong class="text-slate-200">${o.area}</strong></span></div>
+                            <div class="flex items-center gap-2"><i class="fa-solid fa-compass text-slate-500 w-4"></i> <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.coordinates)}" target="_blank" rel="noopener noreferrer" class="font-mono text-kfdgreen-400 hover:text-kfdgreen-300 hover:underline" title="Open customer location in Google Maps">${o.coordinates}</a></div>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-800/80 flex items-center justify-between">
+                        <span class="text-xs text-slate-500 font-medium">Assigned: ${o.rider.split(' ')[0]}</span>
+                        <div class="flex gap-2">
+                            <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.coordinates)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5" title="Open customer route in Google Maps">
+                                <i class="fa-solid fa-map text-kfdgold-500"></i> Route
+                            </a>
+                            <select onchange="updateRiderStatus('${o.id}', this.value)" class="px-3 py-1.5 bg-kfdgreen-600 hover:bg-kfdgreen-500 text-white rounded-lg text-xs font-medium transition-colors shadow-md focus:outline-none">
+                                ${deliveryStatuses.map(status => `<option value="${status}" ${o.status === status ? 'selected' : ''}>${status}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function updateRiderStatus(id, newStatus) {
+            const order = orders.find(o => o.id === id);
+            if (order) {
+                order.status = newStatus;
+                saveOrders();
+                renderTables();
+                renderRiderView();
+                showToast(`Delivery ${id} status updated to "${newStatus}".`);
+            }
+        }
+
+        // Simulate live GPS navigation alert
+        function simulateLiveNavigation(area) {
+            showToast(`Opening GPS route mapping to ${area} in Kwahu South...`);
+        }
+
+        // Modal Controls
+        function openOrderModal() {
+            document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus-circle text-kfdgreen-500"></i> Add New Order`;
+            document.getElementById('order-form').reset();
+            document.getElementById('form-edit-id').value = '';
+            document.getElementById('order-modal').classList.remove('hidden');
+        }
+
+        function openEditModal(id) {
+            const order = orders.find(o => o.id === id);
+            if (!order) return;
+
+            document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-kfdgreen-500"></i> Edit Order (${id})`;
+            document.getElementById('form-edit-id').value = order.id;
+            document.getElementById('form-initial').value = order.initial;
+            document.getElementById('form-contact').value = order.contact;
+            document.getElementById('form-meal').value = order.meal;
+            document.getElementById('form-area').value = order.area;
+            document.getElementById('form-coordinates').value = order.coordinates;
+            document.getElementById('form-status').value = order.status;
+            document.getElementById('form-rider').value = order.rider;
+
+            document.getElementById('order-modal').classList.remove('hidden');
+        }
+
+        function closeOrderModal() {
+            document.getElementById('order-modal').classList.add('hidden');
+        }
+
+        // Form Submit Handler (Add or Edit)
+        function handleFormSubmit(event) {
+            event.preventDefault();
+            const editId = document.getElementById('form-edit-id').value;
+            const initial = document.getElementById('form-initial').value;
+            const contact = document.getElementById('form-contact').value;
+            const meal = document.getElementById('form-meal').value;
+            const area = document.getElementById('form-area').value;
+            const coordinates = document.getElementById('form-coordinates').value;
+            const status = document.getElementById('form-status').value;
+            const rider = document.getElementById('form-rider').value;
+
+            if (editId) {
+                // Edit existing
+                const order = orders.find(o => o.id === editId);
+                if (order) {
+                    order.initial = initial;
+                    order.contact = contact;
+                    order.meal = meal;
+                    order.area = area;
+                    order.coordinates = coordinates;
+                    order.status = status;
+                    order.rider = rider;
+                    showToast(`Order ${editId} updated successfully.`);
+                }
+            } else {
+                // Add new
+                const newId = `KFD-${Math.floor(100 + Math.random() * 900)}`;
+                const newOrder = {
+                    id: newId,
+                    initial,
+                    contact,
+                    meal,
+                    coordinates,
+                    area,
+                    status,
+                    rider
+                };
+                orders.unshift(newOrder);
+                showToast(`New order ${newId} created successfully.`);
+            }
+
+            saveOrders();
+            renderTables();
+            closeOrderModal();
+        }
+
+        // Delete Order
+        function deleteOrder(id) {
+            if (confirm(`Are you sure you want to delete order ${id}?`)) {
+                orders = orders.filter(o => o.id !== id);
+                saveOrders();
+                renderTables();
+                showToast(`Order ${id} deleted.`);
+            }
+        }
+
+        // Export Data to CSV
+        function exportData() {
+            let csv = 'Order ID,Customer Initial,Contact,Meal,Coordinates,Area,Status,Assigned Rider\n';
+            orders.forEach(o => {
+                csv += `"${o.id}","${o.initial}","${o.contact}","${o.meal}","${o.coordinates}","${o.area}","${o.status}","${o.rider}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `kfd_delivery_orders_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            showToast('Delivery spreadsheet exported successfully.');
+        }
+
+        // Toast Notification Trigger
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
