@@ -327,22 +327,49 @@
         function normalizeOrder(order) {
             return {
                 ...order,
+                id: String(order.order_id || order.id),
+                initial: order.initial || '',
+                contact: order.contact || '',
+                meal: order.meal || '',
+                coordinates: order.coordinates || '',
+                area: order.area || '',
                 status: deliveryStatuses.includes(order.status) ? order.status : 'Pending',
                 rider: riders.includes(order.rider) ? order.rider : 'KFD Delivery'
             };
         }
 
-        async function saveOrder(order) {
-            const response = await fetch(supabaseOrdersUrl, {
-                method: 'POST',
+        async function saveOrder(order, isEdit = false) {
+            const { id, order_id, ...orderFields } = order;
+            const response = await fetch(isEdit ? `${supabaseOrdersUrl}?order_id=eq.${encodeURIComponent(id)}` : supabaseOrdersUrl, {
+                method: isEdit ? 'PATCH' : 'POST',
                 headers: { ...supabaseHeaders, Prefer: 'resolution=merge-duplicates,return=minimal' },
-                body: JSON.stringify(order)
+                body: JSON.stringify({
+                    order_id: order_id || id,
+                    restaurant_name: 'Kwahu Food Delivery',
+                    customer_name: order.initial,
+                    phone: order.contact,
+                    landmark: order.area,
+                    ghana_post_code: order.coordinates,
+                    order_type: 'delivery',
+                    delivery_route: order.area,
+                    delivery_fee: 0,
+                    subtotal: 0,
+                    service_fee: 0,
+                    discount: 0,
+                    total: 0,
+                    special_requests: '',
+                    items: [{ name: order.meal, price: 0, quantity: 1 }],
+                    ...orderFields
+                })
             });
-            if (!response.ok) throw new Error(`Supabase save failed: ${response.status}`);
+            if (!response.ok) {
+                const details = await response.text();
+                throw new Error(`Supabase save failed: ${response.status} ${details}`);
+            }
         }
 
         async function removeOrder(id) {
-            const response = await fetch(`${supabaseOrdersUrl}?id=eq.${encodeURIComponent(id)}`, {
+            const response = await fetch(`${supabaseOrdersUrl}?order_id=eq.${encodeURIComponent(id)}`, {
                 method: 'DELETE',
                 headers: supabaseHeaders
             });
@@ -429,7 +456,7 @@
             if (order) {
                 order.status = newStatus;
                 try {
-                    await saveOrder(order);
+                    await saveOrder(order, true);
                     refreshOrderViews();
                     showToast(`Order ${id} status updated to "${newStatus}"`);
                 } catch (error) {
@@ -597,7 +624,7 @@
                 }
             } else {
                 // Add new
-                const newId = `KFD-${Math.floor(100 + Math.random() * 900)}`;
+                const newId = String(Date.now());
                 const newOrder = {
                     id: newId,
                     initial,
@@ -609,17 +636,22 @@
                     rider
                 };
                 orders.unshift(newOrder);
-                showToast(`New order ${newId} created successfully.`);
             }
 
             const savedOrder = editId ? orders.find(order => order.id === editId) : orders[0];
             try {
-                await saveOrder(savedOrder);
+                await saveOrder(savedOrder, Boolean(editId));
                 refreshOrderViews();
                 closeOrderModal();
             } catch (error) {
+                if (editId) {
+                    await loadOrders();
+                } else {
+                    orders.shift();
+                    refreshOrderViews();
+                }
                 console.error(error);
-                showToast('Unable to save the order online.');
+                showToast('Save failed: run supabase-schema.sql in Supabase SQL Editor.');
             }
         }
 
