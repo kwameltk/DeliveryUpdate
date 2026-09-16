@@ -223,14 +223,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Delivery Area</label>
-                        <select id="form-area" required class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-kfdgreen-500">
-                            <option value="Mpraeso Central">Mpraeso Central</option>
-                            <option value="Atibie Township">Atibie Township</option>
-                            <option value="Kwahu Tafo">Kwahu Tafo</option>
-                            <option value="Nkawkaw Station">Nkawkaw Station</option>
-                            <option value="Beetle / Obomeng">Beetle / Obomeng</option>
-                            <option value="Nkwatia University Area">Nkwatia University Area</option>
-                        </select>
+                        <input type="text" id="form-area" required placeholder="e.g. Mpraeso Central" class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-kfdgreen-500">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Delivery Coordinates</label>
@@ -274,54 +267,19 @@
 
     <!-- JavaScript Application Logic -->
     <script>
-        // Initial dataset matching KFD requirements & Excel structure
-        const defaultOrders = [
-            {
-                id: "KFD-101",
-                initial: "Akua Nketia",
-                contact: "0552816831",
-                meal: "Banku & Tilapia with Hot Pepper",
-                coordinates: "6.6653° N, 0.7352° W",
-                area: "Mpraeso Central",
-                status: "Enroute",
-                rider: "Kwame"
-            },
-            {
-                id: "KFD-102",
-                initial: "Kofi Mensah",
-                contact: "0244123456",
-                meal: "Jollof Rice with Fried Chicken & Plantain",
-                coordinates: "6.6520° N, 0.7410° W",
-                area: "Atibie Township",
-                status: "Picked",
-                rider: "KFD Delivery"
-            },
-            {
-                id: "KFD-103",
-                initial: "Abena Ofori",
-                contact: "0509876543",
-                meal: "Fufu with Light Soup & Goat Meat",
-                coordinates: "6.6810° N, 0.7220° W",
-                area: "Kwahu Tafo",
-                status: "Pending",
-                rider: "Sky"
-            },
-            {
-                id: "KFD-104",
-                initial: "Kwasi Appiah",
-                contact: "0277889900",
-                meal: "Fried Yam with Spicy Grilled Tilapia",
-                coordinates: "6.5540° N, 0.6530° W",
-                area: "Nkawkaw Station",
-                status: "Delivered",
-                rider: "Kwame"
-            }
-        ];
-
         // State management
         const riders = ["Kwame", "KFD Delivery", "Sky"];
         const deliveryStatuses = ["Pending", "Picked", "Enroute", "Delivered"];
-        let orders = JSON.parse(localStorage.getItem('kfd_orders')) || defaultOrders;
+        const orderStorageKey = 'kfd_orders';
+        const orderDataVersionKey = 'kfd_order_data_version';
+        const emptyOrderDataVersion = 'empty-v1';
+
+        if (localStorage.getItem(orderDataVersionKey) !== emptyOrderDataVersion) {
+            localStorage.removeItem(orderStorageKey);
+            localStorage.setItem(orderDataVersionKey, emptyOrderDataVersion);
+        }
+
+        let orders = JSON.parse(localStorage.getItem(orderStorageKey)) || [];
         let currentView = 'cs';
         let selectedRiderFilter = 'All';
 
@@ -606,7 +564,7 @@
                 const newOrder = {
                     id: newId,
                     initial,
-                    contact,
+            ntact,
                     meal,
                     coordinates,
                     area,
