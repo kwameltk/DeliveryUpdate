@@ -270,31 +270,22 @@
         // State management
         const riders = ["Kwame", "KFD Delivery", "Sky"];
         const deliveryStatuses = ["Pending", "Picked", "Enroute", "Delivered"];
-        const orderStorageKey = 'kfd_orders';
-        const orderDataVersionKey = 'kfd_order_data_version';
-        const emptyOrderDataVersion = 'empty-v1';
-
-        if (localStorage.getItem(orderDataVersionKey) !== emptyOrderDataVersion) {
-            localStorage.removeItem(orderStorageKey);
-            localStorage.setItem(orderDataVersionKey, emptyOrderDataVersion);
-        }
-
-        let orders = JSON.parse(localStorage.getItem(orderStorageKey)) || [];
+        const supabaseUrl = 'https://aqjbwtjxueygagumiitw.supabase.co';
+        const supabaseKey = 'sb_publishable_Ton8DHCoN3SR415c-x53fQ_wsMyrsKg';
+        const supabaseOrdersUrl = `${supabaseUrl}/rest/v1/orders`;
+        const supabaseHeaders = {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
+        };
+        let orders = [];
         let currentView = 'cs';
         let selectedRiderFilter = 'All';
 
-        orders = orders.map(order => ({
-            ...order,
-            status: deliveryStatuses.includes(order.status) ? order.status : (order.status === 'Cooking' ? 'Picked' : order.status === 'On the Way' ? 'Enroute' : 'Pending'),
-            rider: riders.includes(order.rider) ? order.rider : (order.rider === 'Sky Delivery' || order.rider.includes('Sky') ? 'Sky' : order.rider.includes('Rider 1') || order.rider.includes('Rider 3') ? 'Kwame' : 'KFD Delivery')
-        }));
-        localStorage.setItem('kfd_orders', JSON.stringify(orders));
-
         // Initialize App on Load
-        window.onload = function() {
-            renderTables();
-            updateMetrics();
+        window.onload = async function() {
             setupRiderFilterPills();
+            await loadOrders();
         };
 
         // View Switcher logic
@@ -321,10 +312,47 @@
             }
         }
 
-        // Save orders to LocalStorage
-        function saveOrders() {
-            localStorage.setItem('kfd_orders', JSON.stringify(orders));
+        async function loadOrders() {
+            try {
+                const response = await fetch(`${supabaseOrdersUrl}?select=*`, { headers: supabaseHeaders });
+                if (!response.ok) throw new Error(`Supabase returned ${response.status}`);
+                orders = (await response.json()).map(normalizeOrder);
+                refreshOrderViews();
+            } catch (error) {
+                console.error('Unable to load orders from Supabase:', error);
+                showToast('Unable to load online orders. Check Supabase table access.');
+            }
+        }
+
+        function normalizeOrder(order) {
+            return {
+                ...order,
+                status: deliveryStatuses.includes(order.status) ? order.status : 'Pending',
+                rider: riders.includes(order.rider) ? order.rider : 'KFD Delivery'
+            };
+        }
+
+        async function saveOrder(order) {
+            const response = await fetch(supabaseOrdersUrl, {
+                method: 'POST',
+                headers: { ...supabaseHeaders, Prefer: 'resolution=merge-duplicates,return=minimal' },
+                body: JSON.stringify(order)
+            });
+            if (!response.ok) throw new Error(`Supabase save failed: ${response.status}`);
+        }
+
+        async function removeOrder(id) {
+            const response = await fetch(`${supabaseOrdersUrl}?id=eq.${encodeURIComponent(id)}`, {
+                method: 'DELETE',
+                headers: supabaseHeaders
+            });
+            if (!response.ok) throw new Error(`Supabase delete failed: ${response.status}`);
+        }
+
+        function refreshOrderViews() {
             updateMetrics();
+            renderTables();
+            if (currentView === 'rider') renderRiderView();
         }
 
         // Render CS Table
@@ -396,13 +424,18 @@
         }
 
         // Update Order Status directly from table dropdown
-        function updateOrderStatus(id, newStatus) {
+        async function updateOrderStatus(id, newStatus) {
             const order = orders.find(o => o.id === id);
             if (order) {
                 order.status = newStatus;
-                saveOrders();
-                renderTables();
-                showToast(`Order ${id} status updated to "${newStatus}"`);
+                try {
+                    await saveOrder(order);
+                    refreshOrderViews();
+                    showToast(`Order ${id} status updated to "${newStatus}"`);
+                } catch (error) {
+                    console.error(error);
+                    showToast('Unable to update the online order.');
+                }
             }
         }
 
@@ -488,14 +521,18 @@
             });
         }
 
-        function updateRiderStatus(id, newStatus) {
+        async function updateRiderStatus(id, newStatus) {
             const order = orders.find(o => o.id === id);
             if (order) {
                 order.status = newStatus;
-                saveOrders();
-                renderTables();
-                renderRiderView();
-                showToast(`Delivery ${id} status updated to "${newStatus}".`);
+                try {
+                    await saveOrder(order);
+                    refreshOrderViews();
+                    showToast(`Delivery ${id} status updated to "${newStatus}".`);
+                } catch (error) {
+                    console.error(error);
+                    showToast('Unable to update the online delivery.');
+                }
             }
         }
 
@@ -534,7 +571,7 @@
         }
 
         // Form Submit Handler (Add or Edit)
-        function handleFormSubmit(event) {
+        async function handleFormSubmit(event) {
             event.preventDefault();
             const editId = document.getElementById('form-edit-id').value;
             const initial = document.getElementById('form-initial').value;
@@ -575,18 +612,29 @@
                 showToast(`New order ${newId} created successfully.`);
             }
 
-            saveOrders();
-            renderTables();
-            closeOrderModal();
+            const savedOrder = editId ? orders.find(order => order.id === editId) : orders[0];
+            try {
+                await saveOrder(savedOrder);
+                refreshOrderViews();
+                closeOrderModal();
+            } catch (error) {
+                console.error(error);
+                showToast('Unable to save the order online.');
+            }
         }
 
         // Delete Order
-        function deleteOrder(id) {
+        async function deleteOrder(id) {
             if (confirm(`Are you sure you want to delete order ${id}?`)) {
-                orders = orders.filter(o => o.id !== id);
-                saveOrders();
-                renderTables();
-                showToast(`Order ${id} deleted.`);
+                try {
+                    await removeOrder(id);
+                    orders = orders.filter(o => o.id !== id);
+                    refreshOrderViews();
+                    showToast(`Order ${id} deleted.`);
+                } catch (error) {
+                    console.error(error);
+                    showToast('Unable to delete the online order.');
+                }
             }
         }
 
