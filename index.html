@@ -553,7 +553,7 @@
             if (order) {
                 order.status = newStatus;
                 try {
-                    await saveOrder(order);
+                    await saveOrder(order, true);
                     refreshOrderViews();
                     showToast(`Delivery ${id} status updated to "${newStatus}".`);
                 } catch (error) {
