@@ -130,6 +130,8 @@
                             <option value="Enroute">Enroute</option>
                             <option value="Delivered">Delivered</option>
                         </select>
+                        <input type="date" id="filter-date-from" onchange="renderTables()" class="bg-slate-950 border border-slate-800 text-slate-300 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:border-kfdgreen-500" title="From delivery date">
+                        <input type="date" id="filter-date-to" onchange="renderTables()" class="bg-slate-950 border border-slate-800 text-slate-300 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:border-kfdgreen-500" title="To delivery date">
                     </div>
                 </div>
 
@@ -141,6 +143,7 @@
                                 <th class="py-4 px-6">Contact Number</th>
                                 <th class="py-4 px-6">Meal</th>
                                 <th class="py-4 px-6">Delivery Area & Coordinates</th>
+                                <th class="py-4 px-6">Delivery Window</th>
                                 <th class="py-4 px-6">Status</th>
                                 <th class="py-4 px-6">Assigned Rider</th>
                                 <th class="py-4 px-6 text-right">Actions</th>
@@ -251,6 +254,21 @@
                     </div>
                 </div>
 
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Delivery Date</label>
+                        <input type="date" id="form-order-date" required class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-kfdgreen-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Start Time</label>
+                        <input type="time" id="form-time-start" required class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-kfdgreen-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">End Time</label>
+                        <input type="time" id="form-time-end" required class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:outline-none focus:border-kfdgreen-500">
+                    </div>
+                </div>
+
                 <div class="pt-4 flex items-center justify-end space-x-3 border-t border-slate-800">
                     <button type="button" onclick="closeOrderModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl text-sm transition-all">Cancel</button>
                     <button type="submit" class="px-5 py-2 bg-kfdgreen-600 hover:bg-kfdgreen-500 text-white font-semibold rounded-xl text-sm shadow-lg shadow-kfdgreen-900/30 transition-all">Save Order</button>
@@ -314,14 +332,30 @@
 
         async function loadOrders() {
             try {
-                const response = await fetch(`${supabaseOrdersUrl}?select=*`, { headers: supabaseHeaders });
+                const response = await fetch(`${supabaseOrdersUrl}?select=*&entry_source=eq.manual&order=order_date.asc,time_start.asc`, { headers: supabaseHeaders });
                 if (!response.ok) throw new Error(`Supabase returned ${response.status}`);
-                orders = (await response.json()).map(normalizeOrder);
+                const loadedOrders = await response.json();
+                const incompleteOrders = loadedOrders.filter(order => !hasOrderDetails(order));
+                const deletableOrders = incompleteOrders.filter(order => order.id);
+                const deletions = await Promise.allSettled(
+                    deletableOrders.map(order => removeOrder(order.id))
+                );
+                deletions.forEach((result, index) => {
+                    if (result.status === 'rejected') {
+                        console.error(`Unable to delete incomplete order ${deletableOrders[index].id}:`, result.reason);
+                    }
+                });
+                orders = loadedOrders.filter(hasOrderDetails).map(normalizeOrder);
                 refreshOrderViews();
             } catch (error) {
                 console.error('Unable to load orders from Supabase:', error);
                 showToast('Unable to load online orders. Check Supabase table access.');
             }
+        }
+
+        function hasOrderDetails(order) {
+            return ['initial', 'contact', 'meal', 'coordinates', 'area', 'order_date', 'time_start', 'time_end']
+                .every(field => String(order[field] ?? '').trim() !== '');
         }
 
         function normalizeOrder(order) {
@@ -333,34 +367,34 @@
                 meal: order.meal || '',
                 coordinates: order.coordinates || '',
                 area: order.area || '',
+                order_date: order.order_date || new Date().toISOString().slice(0, 10),
+                time_start: (order.time_start || '00:00').slice(0, 5),
+                time_end: (order.time_end || '23:59').slice(0, 5),
                 status: deliveryStatuses.includes(order.status) ? order.status : 'Pending',
                 rider: riders.includes(order.rider) ? order.rider : 'KFD Delivery'
             };
         }
 
         async function saveOrder(order, isEdit = false) {
-            const { id, order_id, ...orderFields } = order;
-            const response = await fetch(isEdit ? `${supabaseOrdersUrl}?order_id=eq.${encodeURIComponent(id)}` : supabaseOrdersUrl, {
+            const { id } = order;
+            const orderFields = {
+                id,
+                initial: order.initial,
+                contact: order.contact,
+                meal: order.meal,
+                coordinates: order.coordinates,
+                area: order.area,
+                order_date: order.order_date,
+                time_start: order.time_start,
+                time_end: order.time_end,
+                status: order.status,
+                rider: order.rider,
+                entry_source: 'manual'
+            };
+            const response = await fetch(isEdit ? `${supabaseOrdersUrl}?id=eq.${encodeURIComponent(id)}` : supabaseOrdersUrl, {
                 method: isEdit ? 'PATCH' : 'POST',
                 headers: { ...supabaseHeaders, Prefer: 'resolution=merge-duplicates,return=minimal' },
-                body: JSON.stringify({
-                    order_id: order_id || id,
-                    restaurant_name: 'Kwahu Food Delivery',
-                    customer_name: order.initial,
-                    phone: order.contact,
-                    landmark: order.area,
-                    ghana_post_code: order.coordinates,
-                    order_type: 'delivery',
-                    delivery_route: order.area,
-                    delivery_fee: 0,
-                    subtotal: 0,
-                    service_fee: 0,
-                    discount: 0,
-                    total: 0,
-                    special_requests: '',
-                    items: [{ name: order.meal, price: 0, quantity: 1 }],
-                    ...orderFields
-                })
+                body: JSON.stringify(orderFields)
             });
             if (!response.ok) {
                 const details = await response.text();
@@ -369,7 +403,7 @@
         }
 
         async function removeOrder(id) {
-            const response = await fetch(`${supabaseOrdersUrl}?order_id=eq.${encodeURIComponent(id)}`, {
+            const response = await fetch(`${supabaseOrdersUrl}?id=eq.${encodeURIComponent(id)}`, {
                 method: 'DELETE',
                 headers: supabaseHeaders
             });
@@ -387,6 +421,8 @@
             const tbody = document.getElementById('orders-table-body');
             const searchQuery = document.getElementById('table-search').value.toLowerCase();
             const statusFilter = document.getElementById('filter-status').value;
+            const dateFrom = document.getElementById('filter-date-from').value;
+            const dateTo = document.getElementById('filter-date-to').value;
 
             tbody.innerHTML = '';
 
@@ -397,11 +433,13 @@
                                       o.rider.toLowerCase().includes(searchQuery) ||
                                       o.contact.includes(searchQuery);
                 const matchesStatus = statusFilter === '' || o.status === statusFilter;
-                return matchesSearch && matchesStatus;
+                const matchesDateFrom = dateFrom === '' || o.order_date >= dateFrom;
+                const matchesDateTo = dateTo === '' || o.order_date <= dateTo;
+                return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo;
             });
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-500">No delivery orders found matching your criteria.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-500">No delivery orders found matching your criteria.</td></tr>`;
                 return;
             }
 
@@ -425,6 +463,10 @@
                         <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.coordinates)}" target="_blank" rel="noopener noreferrer" class="text-kfdgreen-400 hover:text-kfdgreen-300 hover:underline text-xs font-mono inline-flex items-center gap-1" title="Open customer location in Google Maps">
                             <i class="fa-solid fa-location-arrow"></i> ${o.coordinates}
                         </a>
+                    </td>
+                    <td class="py-4 px-6 text-xs text-slate-300 whitespace-nowrap">
+                        <div class="font-semibold text-white">${o.order_date}</div>
+                        <div class="text-slate-400">${o.time_start} - ${o.time_end}</div>
                     </td>
                     <td class="py-4 px-6">
                         <select onchange="updateOrderStatus('${o.id}', this.value)" class="px-3 py-1 rounded-full text-xs font-semibold border ${badgeClass} bg-transparent cursor-pointer focus:outline-none">
@@ -529,6 +571,7 @@
                             <div class="flex items-center gap-2"><i class="fa-solid fa-phone text-slate-500 w-4"></i> <a href="tel:${o.contact}" class="text-kfdgreen-400 font-mono hover:underline">${o.contact}</a></div>
                             <div class="flex items-center gap-2"><i class="fa-solid fa-location-dot text-slate-500 w-4"></i> <span>Area: <strong class="text-slate-200">${o.area}</strong></span></div>
                             <div class="flex items-center gap-2"><i class="fa-solid fa-compass text-slate-500 w-4"></i> <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.coordinates)}" target="_blank" rel="noopener noreferrer" class="font-mono text-kfdgreen-400 hover:text-kfdgreen-300 hover:underline" title="Open customer location in Google Maps">${o.coordinates}</a></div>
+                            <div class="flex items-center gap-2"><i class="fa-solid fa-calendar-days text-slate-500 w-4"></i> <span>${o.order_date}, ${o.time_start} - ${o.time_end}</span></div>
                         </div>
                     </div>
 
@@ -587,6 +630,9 @@
             document.getElementById('form-meal').value = order.meal;
             document.getElementById('form-area').value = order.area;
             document.getElementById('form-coordinates').value = order.coordinates;
+            document.getElementById('form-order-date').value = order.order_date;
+            document.getElementById('form-time-start').value = order.time_start;
+            document.getElementById('form-time-end').value = order.time_end;
             document.getElementById('form-status').value = order.status;
             document.getElementById('form-rider').value = order.rider;
 
@@ -606,8 +652,16 @@
             const meal = document.getElementById('form-meal').value;
             const area = document.getElementById('form-area').value;
             const coordinates = document.getElementById('form-coordinates').value;
+            const orderDate = document.getElementById('form-order-date').value;
+            const timeStart = document.getElementById('form-time-start').value;
+            const timeEnd = document.getElementById('form-time-end').value;
             const status = document.getElementById('form-status').value;
             const rider = document.getElementById('form-rider').value;
+
+            if (timeEnd < timeStart) {
+                showToast('End time must be later than or equal to start time.');
+                return;
+            }
 
             if (editId) {
                 // Edit existing
@@ -618,6 +672,9 @@
                     order.meal = meal;
                     order.area = area;
                     order.coordinates = coordinates;
+                    order.order_date = orderDate;
+                    order.time_start = timeStart;
+                    order.time_end = timeEnd;
                     order.status = status;
                     order.rider = rider;
                     showToast(`Order ${editId} updated successfully.`);
@@ -632,6 +689,9 @@
                     meal,
                     coordinates,
                     area,
+                    order_date: orderDate,
+                    time_start: timeStart,
+                    time_end: timeEnd,
                     status,
                     rider
                 };
@@ -644,12 +704,7 @@
                 refreshOrderViews();
                 closeOrderModal();
             } catch (error) {
-                if (editId) {
-                    await loadOrders();
-                } else {
-                    orders.shift();
-                    refreshOrderViews();
-                }
+                if (editId) await loadOrders();
                 console.error(error);
                 showToast('Save failed: run supabase-schema.sql in Supabase SQL Editor.');
             }
@@ -657,7 +712,8 @@
 
         // Delete Order
         async function deleteOrder(id) {
-            if (confirm(`Are you sure you want to delete order ${id}?`)) {
+            const adminConfirmation = prompt(`Admin confirmation required. Type DELETE ${id} to permanently delete this order:`);
+            if (adminConfirmation === `DELETE ${id}`) {
                 try {
                     await removeOrder(id);
                     orders = orders.filter(o => o.id !== id);
@@ -672,9 +728,9 @@
 
         // Export Data to CSV
         function exportData() {
-            let csv = 'Order ID,Customer Initial,Contact,Meal,Coordinates,Area,Status,Assigned Rider\n';
+            let csv = 'Order ID,Customer Initial,Contact,Meal,Coordinates,Area,Delivery Date,Start Time,End Time,Status,Assigned Rider\n';
             orders.forEach(o => {
-                csv += `"${o.id}","${o.initial}","${o.contact}","${o.meal}","${o.coordinates}","${o.area}","${o.status}","${o.rider}"\n`;
+                csv += `"${o.id}","${o.initial}","${o.contact}","${o.meal}","${o.coordinates}","${o.area}","${o.order_date}","${o.time_start}","${o.time_end}","${o.status}","${o.rider}"\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
