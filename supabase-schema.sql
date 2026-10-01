@@ -27,6 +27,11 @@ alter table public.orders add column if not exists rider text default 'KFD Deliv
 alter table public.orders add column if not exists entry_source text not null default 'external';
 alter table public.orders add column if not exists created_at timestamptz not null default now();
 
+alter table public.orders alter column order_date set default current_date;
+alter table public.orders alter column time_start set default current_time;
+alter table public.orders alter column time_end set default current_time;
+alter table public.orders alter column created_at set default now();
+
 alter table public.orders enable row level security;
 
 drop policy if exists "Public order access" on public.orders;

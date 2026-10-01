@@ -647,7 +647,7 @@
                 else orders = orders.filter(order => order.id !== savedOrder.id);
                 refreshOrderViews();
                 console.error(error);
-                showToast('Save failed: run supabase-schema.sql in Supabase SQL Editor.');
+                showToast(`Save failed: ${error.message}`);
             }
         }
 
